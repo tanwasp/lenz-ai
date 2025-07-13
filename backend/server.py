@@ -156,6 +156,10 @@ def rewrite(req: RewriteReq):
     except (OpenAIError, Exception) as e:
         raise HTTPException(status_code=500, detail=str(e))
     
+weave.init('Lenz') # 🐝
+
+
+    
 
 # app.post("/adapt", response_model=RewriteResp)
 # def rewrite(req: RewriteReq):
