@@ -141,7 +141,7 @@ def rewrite_snips(snips: Dict[int, str],
     system_prompt = (
         "You are ReadWeaver. The user finds these topics hard: "
         f"{weak}. They are comfortable with: {strong}. "
-        "Rewrite each snippet with humour comedy. just make it as funny as possible"
+        "Rewrite each snippet so that it is understandable to an undergraduate student and leave it be if it is already understandable"
         # "Rewrite each snippet accordingly; short, grade-8 language for weak topics, "
         # "normal technical wording for strong.\nReturn via rewrite_batch."
     )
@@ -189,7 +189,7 @@ def rephrase_text(req: RephraseReq):
         system_prompt = (
             "You are a helpful assistant. For the given context and selected passage, produce: \n"
             "1. summary – a SHORT concept name or key phrase (max 5 words) capturing the essence of the user's confusion/question, based on BOTH the selected text and its replacement. Don't use fillers like Understanding. The purpose is to create a vector database of concepts so name it accordingly\n"
-            "2. rephrase – the selected text so that jargon is explained away and so that the text still matches the context grammatically. Use brackets if needed..\n\n"
+            "2. rephrase – if possible, prefer to keep the original text and simply add a brief explanation in brackets after any jargon or unclear term. Only fully rephrase the text if this would make it much clearer than just adding brackets. Ensure the result still fits grammatically in the original context.\n\n"
             "Respond ONLY in valid JSON on a single line with keys 'summary' and 'rephrase'."
         )
 

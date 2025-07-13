@@ -13,7 +13,7 @@ chrome.permissions.contains({ permissions: ["tabs"] }, (has) => {
   console.log("[dwell] 🔐 tabs permission:", has);
 });
 // This would be your actual backend endpoint in a real application.
-const API_ENDPOINT = "http://127.0.0.1:8001/rewrite";
+const API_ENDPOINT = "http://127.0.0.1:8000/rewrite";
 
 /**
  * Mocks a backend API call to rewrite text content.
