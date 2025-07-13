@@ -1,0 +1,12 @@
+
+# Ignore Python virtual environments
+venv/
+.venv/
+
+# Ignore environment variable files (often contain keys/secrets)
+.env
+.env.*
+
+# Explanation:
+# - 'venv/' and '.venv/' are common virtual environment folders.
+# - '.env' and '.env.*' ignore environment files that may store API keys or secrets.
