@@ -7,6 +7,7 @@ from openai import OpenAI, OpenAIError
 import os, json
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
+import weave
 
 load_dotenv()
 
@@ -84,6 +85,7 @@ REWRITE_TOOL = [
 ]
 
 # ─── helpers ───────────────────────────────────────────────────────────
+@weave.op()
 def openai_call(messages, tools, tool_choice="auto"):
     return client.chat.completions.create(
         model=MODEL,
