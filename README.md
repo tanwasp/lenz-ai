@@ -2,7 +2,7 @@
 
 **Personalized Knowledge-Aware Web Augmentation**
 
-Lenz AI is a Chrome extension + self-hosted backend that personalizes the web to your current knowledge level. By learning what you know — and what you don’t — it rewrites web content in real time to make it more understandable, efficient, and personally useful.
+Transform your online experience. Lenz AI dynamically adapts the internet to your current knowledge schema. Leveraging advanced learning algorithms, it discerns your comprehension baseline across diverse domains, subsequently rewriting web content in real-time. This process ensures information is rendered with optimal granularity, enhancing clarity, maximizing efficiency, and delivering hyper-personalized utility.
 
 ---
 
