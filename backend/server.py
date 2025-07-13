@@ -16,9 +16,23 @@ load_dotenv()
 import mastery
 
 # ─── config ────────────────────────────────────────────────────────────
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+# client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+INFERENCE_ENDPOINT = "https://api.inference.wandb.ai/v1"
 MODEL  = "gpt-4o-mini"
 USER   = "browser_user"                 # you may want a cookie / auth here
+
+# weave inference
+client = OpenAI(
+    base_url=INFERENCE_ENDPOINT,
+
+    # Get your API key from https://wandb.ai/authorize
+    api_key=os.getenv("WEAVE_API_KEY"),
+
+    # Required for W&B inference usage tracking
+    project="Lenz",
+)
+
 
 # ─── FastAPI boilerplate ───────────────────────────────────────────────
 app = FastAPI(title="ReadWeaver-backend")
@@ -249,3 +263,5 @@ def log_dwell_event(req: DwellReq):
     except Exception as e:
         print(f"Failed to log dwell event: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+    
+weave.init('Lenz') # 🐝
