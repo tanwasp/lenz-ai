@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from openai import OpenAI, OpenAIError
 import os, json
+from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -20,6 +21,13 @@ USER   = "browser_user"                 # you may want a cookie / auth here
 
 # ─── FastAPI boilerplate ───────────────────────────────────────────────
 app = FastAPI(title="ReadWeaver-backend")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Or restrict to your extension origin
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Add CORS middleware
 app.add_middleware(
@@ -32,7 +40,7 @@ app.add_middleware(
 
 class RewriteReq(BaseModel):
     strings: Dict[int, str]
-    url: str | None = None
+    # url: str | None = None
 
 class RewriteResp(BaseModel):
     strings: Dict[int, str]
@@ -133,8 +141,9 @@ def rewrite_snips(snips: Dict[int, str],
     system_prompt = (
         "You are ReadWeaver. The user finds these topics hard: "
         f"{weak}. They are comfortable with: {strong}. "
-        "Rewrite each snippet accordingly; short, grade-8 language for weak topics, "
-        "normal technical wording for strong.\nReturn via rewrite_batch."
+        "Rewrite each snippet with humour comedy. just make it as funny as possible"
+        # "Rewrite each snippet accordingly; short, grade-8 language for weak topics, "
+        # "normal technical wording for strong.\nReturn via rewrite_batch."
     )
     resp = openai_call(
         [
@@ -156,13 +165,17 @@ def rewrite(req: RewriteReq):
 
         # 1. Extract phrases the model wants mastery for
         phrases = extract_phrases(snips)
+        # print("phrases", phrases)
 
         # 2. Query mastery (this also starts FAISS on first ever call)
         weak, strong, _ = mastery.classify(USER, phrases)
+        # print("weak", weak)
+        # print("strong", strong)
 
         # 3. Rewrite with mastery context
         new_snips = rewrite_snips(snips, weak, strong)
-
+        print("new_snips", new_snips)
+        
         return {"strings": new_snips}
 
     except (OpenAIError, Exception) as e:

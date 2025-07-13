@@ -216,7 +216,7 @@ def classify(
     for p in phrases:
         key = p.lower().strip()
         s = scores.get(key)
-        print(f"key: {key}, s: {s}")
+        # print(f"key: {key}, s: {s}")
         if s is None:
             # Log neighbour details if debug is True
             s = _nearest_score(key, scores, log=debug)
@@ -248,6 +248,6 @@ if __name__ == "__main__":
         debug=True
     )
 
-    print("Weak   :", weak)
-    print("Strong :", strong)
-    print("Neutral:", neutral)
+    # print("Weak   :", weak)
+    # print("Strong :", strong)
+    # print("Neutral:", neutral)

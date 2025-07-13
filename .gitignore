@@ -6,6 +6,7 @@ venv/
 # Ignore environment variable files (often contain keys/secrets)
 .env
 .env.*
+.python-version
 
 # Explanation:
 # - 'venv/' and '.venv/' are common virtual environment folders.
