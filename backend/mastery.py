@@ -7,6 +7,10 @@ from typing import List, Dict, Tuple, Optional
 import numpy as np
 from sentence_transformers import SentenceTransformer
 import faiss                     # CPU build is fine for small indices
+import logging
+
+# Set up a module-level logger. Users can configure logging level externally.
+logger = logging.getLogger(__name__)
 
 DB_PATH = pathlib.Path(__file__).with_suffix(".db")
 
@@ -148,9 +152,16 @@ def mastery_scores(
 # ------------------------------------------------------------------ #
 def _nearest_score(phrase: str,
                    scores: Dict[str, float],
-                   default: float = 0.5) -> float:
-    """Return score of closest known concept *weighted* by cosine sim."""
+                   default: float = -0.5,
+                   *,
+                   log: bool = False) -> float:
+    """Return score of closest known concept *weighted* by cosine sim.
+    When *log* is True, the neighbour, similarity, and weighted score are
+    emitted via the module logger at DEBUG level.
+    """
     if FAISS_INDEX is None:
+        if log:
+            logger.debug("%s → [no index] default %.2f", phrase, default)
         return default
 
     vec = _embed(phrase)
@@ -159,26 +170,43 @@ def _nearest_score(phrase: str,
     sim = float(D[0][0])             # cosine in [-1,1] (normed)
     idx = int(I[0][0])
 
-    if sim < 0.55:                   # similarity too low → unknown
+    if sim < 0.2:                   # similarity too low → unknown
+        if log:
+            logger.debug("%s → [sim %.2f < 0.55] default %.2f", phrase, sim, default)
         return default
 
     neighbour = FAISS_INDEX.concepts[idx]
     neighbour_score = scores.get(neighbour, default)
-    # simple weighting: interpolate toward neutral as similarity drops
-    return (neighbour_score * sim) + (default * (1 - sim))
+    score = (neighbour_score * sim) + (default * (1 - sim))
+
+    print(f"phrase: {phrase}, neighbour: {neighbour}, sim: {sim}, score: {score}")
+    if log:
+        logger.debug("%s → neighbour %s (sim %.2f) => score %.2f", phrase, neighbour, sim, score)
+
+    return score
 
 # ------------------------------------------------------------------ #
 # 5 .  Classification helper                                        #
 # ------------------------------------------------------------------ #
+
 def classify(
     user_id: str,
     phrases: List[str],
-    weak_thresh: float = 0.3,
+    weak_thresh: float = 0.4,
     strong_thresh: float = 0.7,
+    *,
+    debug: bool = False,
 ) -> Tuple[List[str], List[str], List[str]]:
     """
     Return three lists: (weak, strong, neutral).
     Unknown phrases borrow the nearest neighbour's score.
+
+    When *debug* is True, the closest neighbour information for each
+    unknown phrase is logged at DEBUG level. Enable it with::
+
+        import logging, mastery
+        logging.basicConfig(level=logging.DEBUG)
+        weak, strong, neutral = mastery.classify(user, phrases, debug=True)
     """
     scores = mastery_scores(user_id)
     weak, strong, neutral = [], [], []
@@ -186,8 +214,10 @@ def classify(
     for p in phrases:
         key = p.lower().strip()
         s = scores.get(key)
+        print(f"key: {key}, s: {s}")
         if s is None:
-            s = _nearest_score(key, scores)
+            # Log neighbour details if debug is True
+            s = _nearest_score(key, scores, log=debug)
 
         if s < weak_thresh:
             weak.append(p)
@@ -204,7 +234,7 @@ def classify(
 if __name__ == "__main__":
     USER = "alice"
 
-    # Simulate user interactions
+    # # Simulate user interactions
     add_event(USER, "priors",          "confusion")
     add_event(USER, "posterior",       "confusion")
     add_event(USER, "gradient descent","assumed_mastery")
@@ -212,8 +242,8 @@ if __name__ == "__main__":
 
     weak, strong, neutral = classify(
         USER,
-        ["priors", "posterior", "gradient descent",
-         "variational inference", "tensor calculus"]
+        ["tensor calculus", "duck", "bayes rule", "cheesecake"],
+        debug=True
     )
 
     print("Weak   :", weak)
