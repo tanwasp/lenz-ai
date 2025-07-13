@@ -22,8 +22,8 @@ async function getRewrittenText(textMap) {
   console.log("Background: Mock API received text map:", textMap);
 
   const rewrittenMap = {};
-  const searchRegex = /messi/gi; // g for global, i for case-insensitive
-  const replacementText = "tanish";
+  const searchRegex = /mcp/gi; // g for global, i for case-insensitive
+  const replacementText = "model context protocol";
   let rewriteOccurred = false;
 
   for (const key in textMap) {
