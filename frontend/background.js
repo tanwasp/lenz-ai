@@ -7,7 +7,7 @@
 
 // --- Configuration ---
 // This would be your actual backend endpoint in a real application.
-// const API_ENDPOINT = "https://your-backend-api.com/rewrite-text";
+const API_ENDPOINT = "http://127.0.0.1:8001/rewrite";
 
 /**
  * Mocks a backend API call to rewrite text content.
@@ -18,41 +18,63 @@
  * @param {object} textMap - A JSON object where keys are indices and values are text strings.
  * @returns {Promise<object>} A promise that resolves to the rewritten text map.
  */
+// async function getRewrittenText(textMap) {
+//   console.log("Background: Mock API received text map:", textMap);
+
+//   const rewrittenMap = {};
+//   const searchRegex = /mcp/gi; // g for global, i for case-insensitive
+//   const replacementText = "model context protocol";
+//   let rewriteOccurred = false;
+
+//   for (const key in textMap) {
+//     if (Object.hasOwnProperty.call(textMap, key)) {
+//       const originalText = textMap[key];
+//       if (searchRegex.test(originalText)) {
+//         rewriteOccurred = true;
+//         rewrittenMap[key] = originalText.replace(searchRegex, replacementText);
+//         console.log(
+//           `%cBackground: Rewrote text for key ${key}`,
+//           "color: green;"
+//         );
+//       } else {
+//         // If no replacement is needed, just copy the original text.
+//         rewrittenMap[key] = originalText;
+//       }
+//     }
+//   }
+
+//   console.log("Background: Mock API finished processing.", {
+//     rewriteOccurred,
+//     rewrittenMap,
+//   });
+
+//   // The final response includes the decision and the new text map.
+//   return {
+//     shouldRewrite: rewriteOccurred,
+//     rewrittenText: rewrittenMap,
+//   };
+// }
+
 async function getRewrittenText(textMap) {
-  console.log("Background: Mock API received text map:", textMap);
+  // console.log("Background: API received text map:", textMap);
+  try {
+    const response = await fetch(API_ENDPOINT, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ strings: textMap }),
+    });
 
-  const rewrittenMap = {};
-  const searchRegex = /mcp/gi; // g for global, i for case-insensitive
-  const replacementText = "model context protocol";
-  let rewriteOccurred = false;
-
-  for (const key in textMap) {
-    if (Object.hasOwnProperty.call(textMap, key)) {
-      const originalText = textMap[key];
-      if (searchRegex.test(originalText)) {
-        rewriteOccurred = true;
-        rewrittenMap[key] = originalText.replace(searchRegex, replacementText);
-        console.log(
-          `%cBackground: Rewrote text for key ${key}`,
-          "color: green;"
-        );
-      } else {
-        // If no replacement is needed, just copy the original text.
-        rewrittenMap[key] = originalText;
-      }
+    if (!response.ok) {
+      throw new Error(`API responded with status ${response.status}`);
     }
+    // console.log("Background: API response received.");
+    return await response.json();
+  } catch (error) {
+    console.error("Background: API call failed.", error);
+    throw error;
   }
-
-  console.log("Background: Mock API finished processing.", {
-    rewriteOccurred,
-    rewrittenMap,
-  });
-
-  // The final response includes the decision and the new text map.
-  return {
-    shouldRewrite: rewriteOccurred,
-    rewrittenText: rewrittenMap,
-  };
 }
 
 /**
@@ -74,22 +96,20 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
     getRewrittenText(message.payload)
       .then((apiResponse) => {
-        if (apiResponse.shouldRewrite) {
+        console.log("Background: API response received:", apiResponse);
+        // Adjust this block based on your backend's response structure
+        if (apiResponse !== null && apiResponse.strings) {
           sendResponse({
             type: "REWRITE_TEXT_CONTENT",
-            payload: apiResponse.rewrittenText,
+            payload: apiResponse.strings,
           });
         } else {
-          console.log(
-            "Background: No instances of 'messi' found. No rewrite necessary."
-          );
           sendResponse({
             type: "NO_REWRITE_NEEDED",
           });
         }
       })
-      .catch((error) => {
-        console.error("Background: API call failed.", error);
+      .catch(() => {
         sendResponse({
           type: "API_ERROR",
         });

@@ -115,7 +115,7 @@ function processAndTagNodes(rootNode) {
     if (
       el.hasAttribute("data-rewriter-block-id") ||
       el.closest("[data-rewriter-ignore]") ||
-      el.parentElement.closest("[data-rewriter-block-id]") ||
+      el.closest("[data-rewriter-block-id]") ||
       trimmedInnerHTML.startsWith("<div") ||
       trimmedInnerHTML.startsWith("<a") ||
       // --- New filtering conditions ---
