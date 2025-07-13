@@ -5,8 +5,12 @@ from crewai.tools import BaseTool
 import subprocess
 import json
 import time
+import argparse
 import asyncio
 import sys
+import traceback
+from copy import deepcopy
+
 
 # Set up OpenAI API key
 os.environ["OPENAI_API_KEY"] = ""
@@ -275,16 +279,14 @@ observe_task = Task(
 )
 
 # # Create a crew runner for this observer (optionally invoked elsewhere)
-# observer_crew = Crew(
-#     agents=[screen_observer_agent],
-#     tasks=[observe_task],
-#     process=Process.sequential,
-# )
-
-# result = observer_crew.kickoff()
-
-# print(result)
-
+# try:
+#     Crew(
+#         agents=[screen_observer_agent],
+#         tasks=[observe_task],   # fresh Task copy
+#         process=Process.sequential,
+#     ).kickoff()
+# except Exception:
+#     traceback.print_exc()
 # For now, let's just test the tool directly
 # result = screenpipe_tool._run('get_current_window')
 # print(result)
@@ -334,11 +336,33 @@ intervention_task = Task(
     agent=intervention_agent,
 )
 
-# Run both tasks concurrently
-crew2 = Crew(
-    agents=[intervention_agent],
-    tasks=[intervention_task],
-    process=Process.sequential,
-)
+# # Run both tasks concurrently
+# crew2 = Crew(
+#     agents=[intervention_agent],
+#     tasks=[intervention_task],
+#     process=Process.sequential,
+# )
 
-crew2.kickoff()
+
+# ─── Continuous loop --------------------------------------------------------
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Run ScreenPipe agents")
+    parser.add_argument("mode", choices=["observer", "intervention", "both"], nargs="?", default="both")
+    parser.add_argument("--delay", type=int, default=10, help="Seconds between cycles")
+    args = parser.parse_args()
+
+    try:
+        while True:
+            if args.mode in ("observer", "both"):
+                print("\n=== Observer cycle ===")
+                # fresh crew each time
+                Crew(agents=[screen_observer_agent], tasks=[observe_task], process=Process.sequential).kickoff()
+
+            if args.mode in ("intervention", "both"):
+                print("\n=== Intervention cycle ===")
+                Crew(agents=[intervention_agent], tasks=[intervention_task], process=Process.sequential).kickoff()
+
+            time.sleep(args.delay)
+    except KeyboardInterrupt:
+        print("\nStopping agent loop…")

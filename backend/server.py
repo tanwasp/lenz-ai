@@ -23,9 +23,12 @@ USER   = "browser_user"                 # you may want a cookie / auth here
 # weave inference
 INFERENCE_ENDPOINT = "https://api.inference.wandb.ai/v1"
 
+<<<<<<< HEAD
 # weave inference
 INFERENCE_ENDPOINT = "https://api.inference.wandb.ai/v1"
 
+=======
+>>>>>>> f303912d054fa6bf14408e0fe331fe69498235fb
 # ─── FastAPI boilerplate ───────────────────────────────────────────────
 app = FastAPI(title="ReadWeaver-backend")
 app.add_middleware(
@@ -186,6 +189,7 @@ def rewrite_snips(
     
     system_prompt = (
         "You are ReadWeaver. The user finds these topics hard: "
+<<<<<<< HEAD
         "You are ReadWeaver. The user finds these topics hard: "
         f"{weak}. They are comfortable with: {strong}. "
         "Err on the side of leaving text as it is. Only rewrite when a sentence *directly* involves a hard topic. "
@@ -196,6 +200,12 @@ def rewrite_snips(
         "Jargon → add intuitive explanation in brackets; include an example if helpful. Keep language approx. 9th-grade. "
         "If no information about user mastery is provided, or nothing is relevant, do not rewrite. "
         "Return via rewrite_batch."
+=======
+        f"{weak}. They are comfortable with: {strong}. "
+        "Rewrite each snippet so that it is understandable to an undergraduate student and leave it be if it is already understandable"
+        # "Rewrite each snippet accordingly; short, grade-8 language for weak topics, "
+        # "normal technical wording for strong.\nReturn via rewrite_batch."
+>>>>>>> f303912d054fa6bf14408e0fe331fe69498235fb
     )
     # --- LLM call ---------------------------------------------------------------
     resp = openai_call(
@@ -330,6 +340,7 @@ def log_confusion(req: ConfReq):
         print(f"Logged confusion via HTTP: {req.concept}")
         return {"status": "ok"}
     except Exception as e:
+<<<<<<< HEAD
         print(f"Failed to log confusion via HTTP: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -347,5 +358,9 @@ def mastery_classify(req: ClassifyReq):
         raise HTTPException(status_code=500, detail=str(e))
     
 weave.init('Lenz') # 🐝
+=======
+        print(f"Failed to log dwell event: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+>>>>>>> f303912d054fa6bf14408e0fe331fe69498235fb
     
 weave.init('Lenz') # 🐝
