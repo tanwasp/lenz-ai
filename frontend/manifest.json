@@ -3,10 +3,19 @@
   "name": "Personalized Web Rewriter",
   "version": "1.0.0",
   "description": "Rewrites web page content in real-time based on your needs.",
-  "permissions": ["scripting"],
+  "permissions": ["scripting", "tabs", "windows"],
   "host_permissions": ["<all_urls>"],
   "background": {
     "service_worker": "background.js"
+  },
+  "commands": {
+    "replace-selection": {
+      "suggested_key": {
+        "default": "Alt+Z",
+        "mac": "Alt+Z"
+      },
+      "description": "Replace the selected text with the rewritten text"
+    }
   },
   "content_scripts": [
     {

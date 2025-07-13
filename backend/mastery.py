@@ -120,6 +120,8 @@ def add_event(
 
     _upsert_concept(concept)
 
+    print(f"Adding event: {user_id}, {concept}, {w}, {ts}")
+
     with _conn() as cx:
         cx.execute(
             "INSERT INTO events (user_id, concept, weight, ts) "
