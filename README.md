@@ -19,3 +19,7 @@ Transform your online experience. Lenz AI dynamically adapts the internet to you
 
 - 🧩 **Minimal Setup, Maximum Impact**  
   Just plug in your OpenAI API key, run the backend, and install the extension.
+
+## ToDo:
+
+- Convert the 

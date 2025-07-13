@@ -9,6 +9,7 @@ venv/
 .python-version
 backend/__pycache__
 
+.db
 node_modules/
 
 # Explanation:

@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Priors &amp; Posteriors – Deep Dive</title>
+  <style>
+    body {font-family: Georgia, serif; line-height: 1.7; margin: 2rem auto; max-width: 800px; color: #222;}
+    h1, h2 {color: #5a2e10;}
+    aside {background:#fdf8f4; border-left:4px solid #8B4513; padding:1rem 1.2rem; margin:1.5rem 0;}
+    code {background:#f3f3f3; padding:0.15rem 0.3rem; border-radius:4px;}
+  </style>
+</head>
+<body>
+  <h1>Priors &amp; Posteriors in Variational Autoencoders</h1>
+
+  <p>
+    This note expands on Section&nbsp;1 of the <a href="vae_overview.html#priors-posteriors">VAE overview</a>. It explores how probabilistic choices influence
+    the behaviour and performance of VAEs.
+  </p>
+
+  <h2>1. Choosing the Prior</h2>
+  <p>
+    The <strong>prior</strong> <code>p(z)</code> acts as a regulariser. A standard Gaussian prior offers analytical KL divergence and encourages
+    a centred, isotropic latent space. Alternatives include:
+  </p>
+  <ul>
+    <li><em>Sparse priors</em> (e.g.&nbsp;Laplace) to promote disentanglement.</li>
+    <li><em>VampPrior</em>: a learnable mixture of variational posteriors improving flexibility.</li>
+    <li><em>Hierarchical priors</em> that stack latent variables for richer generative capacity.</li>
+  </ul>
+
+  <aside>
+    <strong>Tip&nbsp;— KL Annealing</strong><br>
+    Gradually increasing the weight of the KL term during training prevents <em>posterior collapse</em>,
+    where the decoder ignores latent variables.
+  </aside>
+
+  <h2>2. Modelling the Posterior</h2>
+  <p>
+    The encoder outputs <code>μ(x)</code> and <code>σ(x)</code> defining the <strong>approximate posterior</strong>
+    <code>q<sub>ϕ</sub>(z | x)</code>. Common extensions:
+  </p>
+  <ul>
+    <li><em>Normalising Flows</em>: apply invertible transforms to increase expressiveness.</li>
+    <li><em>Discrete latents</em> with Gumbel-Softmax for categorical variables.</li>
+    <li><em>Structured posteriors</em> encoding correlations between latent dimensions.</li>
+  </ul>
+
+  <h2>3. ELBO Breakdown</h2>
+  <p>
+    The Evidence Lower BOund is
+    <code>𝓛 = 𝔼<sub>q</sub>[log&nbsp;p<sub>θ</sub>(x&nbsp;|&nbsp;z)] – KL(q<sub>ϕ</sub>(z&nbsp;|&nbsp;x) ∥ p(z))</code>.
+    Maximising 𝓛 balances data fidelity and adherence to the prior.
+  </p>
+
+  <h2>4. Practical Pitfalls</h2>
+  <ul>
+    <li><strong>Posterior collapse</strong>: mitigate with KL annealing or stronger priors.</li>
+    <li><strong>Over-regularisation</strong>: too strong a prior blurs reconstructions.</li>
+    <li>Choice of likelihood (<code>p(x|z)</code>) matters — Bernoulli vs Gaussian for images.</li>
+  </ul>
+
+  <p style="margin-top:3rem; font-style:italic;">Feel free to highlight confusing passages; the system
+  maps them back to their corresponding concepts here.</p>
+</body>
+</html> 

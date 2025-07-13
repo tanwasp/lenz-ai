@@ -1,6 +1,6 @@
 # server.py
 from __future__ import annotations
-from typing import Dict
+from typing import Dict, Optional
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -19,6 +19,12 @@ import mastery
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 MODEL  = "gpt-4o-mini"
 USER   = "browser_user"                 # you may want a cookie / auth here
+
+# weave inference
+INFERENCE_ENDPOINT = "https://api.inference.wandb.ai/v1"
+
+# weave inference
+INFERENCE_ENDPOINT = "https://api.inference.wandb.ai/v1"
 
 # ─── FastAPI boilerplate ───────────────────────────────────────────────
 app = FastAPI(title="ReadWeaver-backend")
@@ -62,6 +68,20 @@ class DwellReq(BaseModel):
 class DwellResp(BaseModel):
     status: str
     message: str
+
+# ─── NEW: confusion logging schema ──────────────────────────────────────────
+
+class ConfReq(BaseModel):
+    concept: str
+
+# For mastery classification
+class ClassifyReq(BaseModel):
+    phrases: list[str]
+
+class ClassifyResp(BaseModel):
+    weak: list[str]
+    strong: list[str]
+    neutral: list[str]
 
 # ─── OpenAI tool schemas ───────────────────────────────────────────────
 EXTRACT_TOOL = [
@@ -127,7 +147,8 @@ def extract_phrases(snips: Dict[int, str]) -> list[str]:
     resp = openai_call(
         [
             {"role": "system",
-             "content": "Extract key technical phrases."},
+             "content": "Extract key technical phrases the reader might not know."},
+             "content": "Extract key technical phrases the reader might not know."},
             {"role": "user", "content": numbered}
         ],
         tools=EXTRACT_TOOL,
@@ -136,17 +157,48 @@ def extract_phrases(snips: Dict[int, str]) -> list[str]:
     args = resp.choices[0].message.tool_calls[0].function.arguments
     return json.loads(args)["phrases"]
 
-def rewrite_snips(snips: Dict[int, str],
-                  weak: list[str],
-                  strong: list[str]) -> Dict[int, str]:
+# ------------------------------------------------------------------
+#  Helper – rewrite snippets OR skip when nothing is relevant
+# ------------------------------------------------------------------
+
+from typing import Optional, Dict as _Dict  # local alias to avoid confusion
+
+
+def rewrite_snips(
+    snips: Dict[int, str],
+    weak: list[str],
+    strong: list[str],
+) -> Optional[_Dict[int, str]]:
+    """Return a rewritten map or **None** if no mastery context applies.
+
+    • If both *weak* and *strong* are empty the function decides the database
+      has no signal.  Skips the expensive LLM call and returns *None* so the
+      caller can fall back to the original snippets unchanged.
+    """
+
+    # --- Early-exit: nothing to personalise ---------------------------------
+    if not weak and not strong:
+        print("rewrite_snips: no mastery context → returning None")
+        return None
+
     numbered = "\n".join(f"{i}. {t}" for i, t in snips.items())
+    print(f"weak: {weak}")
+    print(f"strong: {strong}")
+    
     system_prompt = (
-        "The user finds these topics hard: "
+        "You are ReadWeaver. The user finds these topics hard: "
+        "You are ReadWeaver. The user finds these topics hard: "
         f"{weak}. They are comfortable with: {strong}. "
-        "Rewrite each snippet accordingly. For jargon, give intuitive explanations in brackets and include an example. If appropriate. All snippets related to hard topics should be rewritten to a 9th grade level. If no information about user mastery is provided, do not rewrite the snippets."
-        # "Rewrite each snippet accordingly; short, grade-8 language for weak topics, "
-        # "normal technical wording for strong.\nReturn via rewrite_batch."
+        "Err on the side of leaving text as it is. Only rewrite when a sentence *directly* involves a hard topic. "
+        "If none of the topics provided are relevant to a snippet, return it exactly as given. "
+        "When rewriting, operate at the **sentence level**: leave untouched sentences verbatim and only change the sentences that need clarification. "
+        "For any sentence you change, wrap JUST THAT sentence (not the whole paragraph) in <span style='color:#8B4513'>…</span> so the UI highlights only the modified parts. Unmodified sentences must stay outside any span. "
+        "Maintain the original HTML structure and tags. Do not rewrite titles or headers. "
+        "Jargon → add intuitive explanation in brackets; include an example if helpful. Keep language approx. 9th-grade. "
+        "If no information about user mastery is provided, or nothing is relevant, do not rewrite. "
+        "Return via rewrite_batch."
     )
+    # --- LLM call ---------------------------------------------------------------
     resp = openai_call(
         [
             {"role": "system", "content": system_prompt},
@@ -157,7 +209,19 @@ def rewrite_snips(snips: Dict[int, str],
     )
     data = json.loads(resp.choices[0].message.tool_calls[0]
                       .function.arguments)
-    return {item["id"]: item["text"] for item in data["rewrites"]}
+    rewritten_map = {item["id"]: item["text"] for item in data["rewrites"]}
+
+    # If nothing was rewritten (empty or identical) → treat as None
+    if not rewritten_map:
+        print("rewrite_snips: LLM returned empty rewrites → None")
+        return None
+
+    no_change = all(rewritten_map.get(k) == snips.get(k) for k in rewritten_map)
+    if no_change:
+        print("rewrite_snips: rewrites identical to originals → None")
+        return None
+
+    return rewritten_map
 
 # ─── main endpoint ─────────────────────────────────────────────────────
 @app.post("/rewrite", response_model=RewriteResp)
@@ -174,9 +238,15 @@ def rewrite(req: RewriteReq):
         # print("weak", weak)
         # print("strong", strong)
 
-        # 3. Rewrite with mastery context
+        # 3. Rewrite with mastery context (may return None)
         new_snips = rewrite_snips(snips, weak, strong)
-        print("new_snips", new_snips)
+
+        if new_snips is None:
+            # No relevant topics → keep original snippets unchanged
+            new_snips = snips
+            print("rewrite: skipped LLM rewrite – no mastery context")
+        else:
+            print("new_snips", new_snips)
         
         return {"strings": new_snips}
 
@@ -233,19 +303,50 @@ def rephrase_text(req: RephraseReq):
     except (OpenAIError, Exception) as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-# ─── dwell endpoint ────────────────────────────────────────────────────────
-@app.post("/dwell", response_model=DwellResp)
-def log_dwell_event(req: DwellReq):
+# # ─── dwell endpoint ────────────────────────────────────────────────────────
+# @app.post("/dwell", response_model=DwellResp)
+# def log_dwell_event(req: DwellReq):
+#     try:
+#         # Log assumed mastery event for the dwell context
+#         mastery.add_event(USER, req.context, "assumed_mastery")
+#         print(f"Logged assumed mastery event for dwell context: {req.context[:100]}...")
+        
+#         return {
+#             "status": "success", 
+#             "message": "Dwell event logged successfully"
+#         }
+        
+#     except Exception as e:
+#         print(f"Failed to log dwell event: {e}")
+#         raise HTTPException(status_code=500, detail=str(e))
+
+# ─── confusion logging endpoint ─────────────────────────────────────────────
+
+
+@app.post("/log_confusion")
+def log_confusion(req: ConfReq):
+    """Record a confusion signal coming from the MCP observer."""
     try:
-        # Log assumed mastery event for the dwell context
-        mastery.add_event(USER, req.context, "assumed_mastery")
-        print(f"Logged assumed mastery event for dwell context: {req.context[:100]}...")
-        
-        return {
-            "status": "success", 
-            "message": "Dwell event logged successfully"
-        }
-        
+        mastery.add_event(USER, req.concept.strip().lower(), "confusion")
+        print(f"Logged confusion via HTTP: {req.concept}")
+        return {"status": "ok"}
     except Exception as e:
-        print(f"Failed to log dwell event: {e}")
+        print(f"Failed to log confusion via HTTP: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+# ─── mastery classification endpoint ────────────────────────────────────────
+
+
+@app.post("/mastery_classify", response_model=ClassifyResp)
+def mastery_classify(req: ClassifyReq):
+    """Return weak/strong/neutral classification for each phrase."""
+    try:
+        weak, strong, neutral = mastery.classify(USER, req.phrases)
+        return {"weak": weak, "strong": strong, "neutral": neutral}
+    except Exception as e:
+        print(f"Failed to classify mastery: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+    
+weave.init('Lenz') # 🐝
+    
+weave.init('Lenz') # 🐝

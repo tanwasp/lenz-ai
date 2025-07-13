@@ -211,16 +211,23 @@ function initialize() {
       });
   }
 
-  // 3. Set up the observer to handle content added later.
-  observer = new MutationObserver((mutations) => {
-    for (const mutation of mutations) {
-      if (mutation.addedNodes.length > 0) {
-        handleNewNodes(mutation.addedNodes);
-      }
-    }
-  });
-
-  observer.observe(document.body, { childList: true, subtree: true });
+  /*
+   * Dynamic block detection disabled: we only trigger rewrites on the
+   * initial page load (refresh / navigation).  Subsequent DOM mutations –
+   * including those caused by the user’s "rephrase" action – should NOT
+   * cause the entire paragraph to be re-rewritten, which previously
+   * overwrote the user’s manual edits.  If you later need incremental
+   * rewriting (e.g. for infinite-scroll articles) re-enable the observer
+   * or add more specific filters.
+   */
+  // observer = new MutationObserver((mutations) => {
+  //   for (const mutation of mutations) {
+  //     if (mutation.addedNodes.length > 0) {
+  //       handleNewNodes(mutation.addedNodes);
+  //     }
+  //   }
+  // });
+  // observer.observe(document.body, { childList: true, subtree: true });
 }
 
 // ---------- Helper to extract parent block element ----------

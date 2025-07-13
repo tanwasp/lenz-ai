@@ -1,25 +1,23 @@
 #!/usr/bin/env python3
-"""ScreenPipe Real-time MCP Server (Python FastMCP)
-
-Mirrors the behaviour of `server.js` but is implemented with the official
-**Python FastMCP SDK**.  The server exposes five tools:
-
-1. ``get_current_window``        – Return OCR text + optional screenshot.
-2. ``start_window_monitoring``   – Begin polling ScreenPipe every 2 s.
-3. ``stop_window_monitoring``    – Stop the polling loop.
-4. ``search_window_history``     – Query historical OCR frames.
-5. ``get_screenpipe_status``     – Health/status check of ScreenPipe.
-
-Run locally with:
-
-    uv run mcp dev fast_server.py   # hot-reload dev server
-    # or
-    python fast_server.py           # production
-
-The ScreenPipe desktop app must already be running on http://localhost:3030.
-"""
-from __future__ import annotations
-
+# """ScreenPipe Real-time MCP Server (Python FastMCP)
+#
+# Mirrors the behaviour of `server.js` but is implemented with the official
+# **Python FastMCP SDK**.  The server exposes five tools:
+#
+# 1. ``get_current_window``        – Return OCR text + optional screenshot.
+# 2. ``start_window_monitoring``   – Begin polling ScreenPipe every 2 s.
+# 3. ``stop_window_monitoring``    – Stop the polling loop.
+# 4. ``search_window_history``     – Query historical OCR frames.
+# 5. ``get_screenpipe_status``     – Health/status check of ScreenPipe.
+#
+# Run locally with:
+#
+#     uv run mcp dev fast_server.py   # hot-reload dev server
+#     # or
+#     python fast_server.py           # production
+#
+# The ScreenPipe desktop app must already be running on http://localhost:3030.
+# """
 import asyncio
 import contextlib
 import json
@@ -31,9 +29,21 @@ import requests
 from mcp.server.fastmcp import FastMCP  # type: ignore
 from pydantic import BaseModel, Field
 
+# --- ensure repo-root/backend is on PYTHONPATH --------------------------------
 import subprocess, socket, os, json
 from pathlib import Path
 import sys
+
+# Add ../../backend to sys.path so we can import mastery.py
+ROOT_DIR = Path(__file__).resolve().parents[2]  # repo root
+BACKEND_DIR = ROOT_DIR / "backend"
+if BACKEND_DIR.exists() and str(BACKEND_DIR) not in sys.path:
+    sys.path.append(str(BACKEND_DIR))
+
+import mastery  # now resolvable
+
+# Consistent user identifier across backend & MCP
+USER_ID = "browser_user"
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger("screenpipe-fastmcp")
@@ -229,6 +239,7 @@ async def get_current_window(
     include_text: bool = True,
 ) -> Dict[str, Any]:
     """Return the most recent focused window captured by ScreenPipe."""
+    logger.info("🛠️  get_current_window(include_screenshot=%s, include_text=%s)", include_screenshot, include_text)
     state = await _realtime.get_latest_window_content(include_screenshot)
     if state is None:
         return {
@@ -257,6 +268,7 @@ async def get_current_window_with_screenshot() -> Dict[str, Any]:  # noqa: D401
     `include_screenshot=True`.  The screenshot is returned in the `screenshot`
     field of the structured result.
     """
+    logger.info("🛠️  get_current_window_with_screenshot()")
     return await get_current_window(include_screenshot=True, include_text=True)
 
 
@@ -281,6 +293,7 @@ async def show_tooltip(text: str, duration: int | None = 5) -> str:
         Seconds to keep the notification visible. macOS notifications are
         managed by the system; *duration* is best-effort (ignored if None).
     """
+    logger.info("🛠️  show_tooltip text='%s' duration=%s", text[:60], duration)
 
     payload = json.dumps({"text": text[:200], "duration": duration})
 
@@ -315,12 +328,14 @@ async def show_tooltip(text: str, duration: int | None = 5) -> str:
 @mcp.tool(name="start_window_monitoring")
 async def start_window_monitoring(auto_screenshots: bool = True) -> str:  # noqa: D401
     """Begin polling ScreenPipe every 2 seconds."""
+    logger.info("🛠️  start_window_monitoring(auto_screenshots=%s)", auto_screenshots)
     await _realtime.start_realtime_monitoring()
     return "Started realtime monitoring"
 
 
 @mcp.tool(name="stop_window_monitoring")
 async def stop_window_monitoring() -> str:  # noqa: D401
+    logger.info("🛠️  stop_window_monitoring()")
     await _realtime.stop_realtime_monitoring()
     return "Stopped realtime monitoring"
 
@@ -335,6 +350,7 @@ async def search_window_history(
     limit: int = 10,
     include_screenshots: bool = False,
 ) -> List[Dict[str, Any]]:
+    logger.info("🛠️  search_window_history query='%s' app=%s window=%s limit=%s", query, app_name, window_name, limit)
     return await _realtime.search_window_history(
         query=query,
         app_name=app_name,
@@ -348,10 +364,46 @@ async def search_window_history(
 
 @mcp.tool(name="get_screenpipe_status")
 async def get_screenpipe_status() -> Dict[str, Any]:
+    logger.info("🛠️  get_screenpipe_status()")
     if not await _realtime.check_health():
         return {"status": "unreachable"}
     data = requests.get("http://localhost:3030/health", timeout=3).json()
     return {"status": "healthy", **data, "monitoring": _realtime.is_streaming}
+
+
+# ---------------------------------------------------------------------------
+# Mastery classification proxy
+# ---------------------------------------------------------------------------
+
+
+@mcp.tool(name="classify_mastery")
+async def classify_mastery(phrases: List[str]) -> Dict[str, List[str]]:  # noqa: D401
+    """Return weak/strong/neutral lists for the given phrases via backend."""
+
+    BACKEND = os.getenv("BACKEND_URL", "http://127.0.0.1:8000")
+    try:
+        resp = requests.post(f"{BACKEND}/mastery_classify", json={"phrases": phrases})
+        resp.raise_for_status()
+        return resp.json()
+    except requests.RequestException as exc:
+        return {"error": str(exc)}
+
+
+@mcp.tool(name="log_confusion")
+async def log_confusion(concept: str | None = None, text: str | None = None) -> str:  # noqa: D401
+    """Record a confusion event via mastery.add_event.
+
+    Accepts either *concept* **or** *text* as the phrase to log so that
+    callers can pass `{concept: "foo"}` or `{text: "foo"}`.
+    """
+
+    phrase = (concept or text or "").strip()
+    if not phrase:
+        return "No concept given"
+
+    BACKEND = os.getenv("BACKEND_URL", "http://127.0.0.1:8000")
+    resp = requests.post(f"{BACKEND}/log_confusion", json={"concept": phrase})
+    return f"Logged: {phrase}" if resp.ok else f"Failed: {resp.text}"
 
 
 # ---------------------------------------------------------------------------

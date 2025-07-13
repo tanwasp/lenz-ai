@@ -152,36 +152,41 @@ def mastery_scores(
 # ------------------------------------------------------------------ #
 # 4 .  Nearest-neighbour fallback                                   #
 # ------------------------------------------------------------------ #
-def _nearest_score(phrase: str,
-                   scores: Dict[str, float],
-                   default: float = -0.5,
-                   *,
-                   log: bool = False) -> float:
-    """Return score of closest known concept *weighted* by cosine sim.
-    When *log* is True, the neighbour, similarity, and weighted score are
-    emitted via the module logger at DEBUG level.
+def _nearest_score(
+    phrase: str,
+    scores: Dict[str, float],
+    *,
+    sim_thresh: float = 0.25,
+    log: bool = False,
+) -> Optional[float]:
+    """Return weighted mastery score of closest neighbour or **None**.
+
+    Returns ``None`` when
+      • there is no FAISS index yet, or
+      • the best cosine similarity is below *sim_thresh*.
     """
+
     if FAISS_INDEX is None:
         if log:
-            logger.debug("%s → [no index] default %.2f", phrase, default)
-        return default
+            logger.debug("%s → [no index]", phrase)
+        return None
 
     vec = _embed(phrase)
     with FAISS_LOCK:
-        D, I = FAISS_INDEX.search(vec[None, :], 1)   # top-1
-    sim = float(D[0][0])             # cosine in [-1,1] (normed)
+        D, I = FAISS_INDEX.search(vec[None, :], 1)
+
+    sim = float(D[0][0])
     idx = int(I[0][0])
 
-    if sim < 0.2:                   # similarity too low → unknown
+    if sim < sim_thresh or idx < 0:
         if log:
-            logger.debug("%s → [sim %.2f < 0.55] default %.2f", phrase, sim, default)
-        return default
+            logger.debug("%s → sim %.2f below threshold %.2f → None", phrase, sim, sim_thresh)
+        return None
 
     neighbour = FAISS_INDEX.concepts[idx]
-    neighbour_score = scores.get(neighbour, default)
-    score = (neighbour_score * sim) + (default * (1 - sim))
+    neighbour_score = scores.get(neighbour, 0.0)
+    score = (neighbour_score * sim) + (0.0 * (1 - sim))
 
-    print(f"phrase: {phrase}, neighbour: {neighbour}, sim: {sim}, score: {score}")
     if log:
         logger.debug("%s → neighbour %s (sim %.2f) => score %.2f", phrase, neighbour, sim, score)
 
@@ -216,12 +221,14 @@ def classify(
     for p in phrases:
         key = p.lower().strip()
         s = scores.get(key)
-        # print(f"key: {key}, s: {s}")
         if s is None:
-            # Log neighbour details if debug is True
+            # Try neighbour lookup
             s = _nearest_score(key, scores, log=debug)
 
-        if s < weak_thresh:
+        if s is None:
+            # Unknown concept – stays neutral
+            neutral.append(p)
+        elif s < weak_thresh:
             weak.append(p)
         elif s > strong_thresh:
             strong.append(p)
@@ -236,11 +243,11 @@ def classify(
 if __name__ == "__main__":
     USER = "alice"
 
-    # # Simulate user interactions
-    add_event(USER, "priors",          "confusion")
-    add_event(USER, "posterior",       "confusion")
-    add_event(USER, "gradient descent","assumed_mastery")
-    add_event(USER, "gradient descent","recall_correct")
+    # # # Simulate user interactions
+    # add_event(USER, "priors",          "confusion")
+    # add_event(USER, "posterior",       "confusion")
+    # add_event(USER, "gradient descent","assumed_mastery")
+    # add_event(USER, "gradient descent","recall_correct")
 
     weak, strong, neutral = classify(
         USER,

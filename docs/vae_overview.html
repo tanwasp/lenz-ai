@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Variational Autoencoders – Overview</title>
+  <style>
+    body {font-family: Arial, sans-serif; line-height: 1.6; margin: 2rem auto; max-width: 760px; color: #222;}
+    h1, h2 {color: #005f7a;}
+    section {margin-bottom: 2.5rem;}
+  </style>
+</head>
+<body>
+  <h1>Variational Autoencoders (VAE)</h1>
+
+  <!-- 0. Fun Intro – Cats & Dogs Image Generation -->
+  <section id="intro">
+    <h2>Before We Begin: Why Cats &amp; Dogs?</h2>
+    <p>
+      Imagine you want an AI model that can invent pictures of <em>cats wearing sunglasses</em> or
+      <em>dogs riding skateboards</em>.  VAEs are one way to make that happen: they map each photo to a
+      point in a latent space and then sample new points to generate fresh images.  This playful
+      example has nothing to do with complex terms like <strong>priors</strong> or
+      <strong>posteriors</strong>—it simply shows the creative power of VAEs!
+    </p>
+  </section>
+
+  <!-- 1. Priors & Posteriors -->
+  <section id="priors-posteriors">
+    <h2>1. Probabilistic Foundations: Priors &amp; Posteriors</h2>
+    <p>
+      In a VAE we assume our observed data <em>x</em> is generated from latent variables <em>z</em> drawn
+      from a simple <strong><span style="color:#8B4513">prior</span></strong>, typically a standard normal distribution.
+      The generative model defines <em>p<sub>θ</sub>(x&nbsp;|&nbsp;z)</em>, while the inference network estimates the
+      <strong><span style="color:#8B4513">posterior</span></strong> <em>q<sub>ϕ</sub>(z&nbsp;|&nbsp;x)</em>. We optimise a lower bound on the marginal
+      likelihood (the ELBO) that balances reconstruction accuracy with how closely the learned posterior
+      matches the prior.
+    </p>
+  </section>
+
+  <!-- 2. Neural-Network Perspective -->
+  <section id="neural-net">
+    <h2>2. Neural-Network Implications</h2>
+    <p>
+      The encoder is a neural network mapping inputs to mean and variance of <em>q<sub>ϕ</sub>(z&nbsp;|&nbsp;x)</em>.
+      Using the <em>reparameterisation trick</em>, we sample <em>z</em> via <em>z&nbsp;=&nbsp;μ&nbsp;+&nbsp;σ&nbsp;&odot;&nbsp;ε</em>
+      with <em>ε&nbsp;∼&nbsp;𝒩(0,1)</em>, enabling back-propagation through stochastic nodes. The decoder, another
+      network, reconstructs <em>x̂</em> from <em>z</em>. Training minimises reconstruction loss plus a KL-divergence
+      term guiding <em>q<sub>ϕ</sub></em> toward the prior.
+    </p>
+  </section>
+
+  <!-- 3. Results & Applications -->
+  <section id="results">
+    <h2>3. Results &amp; Applications</h2>
+    <p>
+      VAEs learn smooth latent spaces useful for <strong>interpolation</strong>, <strong>data generation</strong>, and
+      semi-supervised learning. Compared with classical autoencoders, they produce more diverse yet coherent
+      outputs and allow mathematical reasoning about sample likelihoods. In image domains, VAEs can generate
+      novel faces, digits, or fashion items; in NLP, they model sentence embeddings and enable controllable
+      text generation.
+    </p>
+  </section>
+</body>
+</html> 

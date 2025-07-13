@@ -6,6 +6,7 @@ import subprocess
 import json
 import time
 import asyncio
+import sys
 
 # Set up OpenAI API key
 os.environ["OPENAI_API_KEY"] = ""
@@ -87,13 +88,12 @@ class ScreenPipeTool(BaseTool):
         # so we can communicate via JSON-RPC.  Make sure fast_server.py is in the
         # same directory as this file.
         self._server_proc = subprocess.Popen(
-            ["python", "fast_server.py"],
+            [sys.executable, "fast_server.py"],
             stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            stdout=subprocess.PIPE,   # <- restore PIPE for JSON-RPC replies
+            stderr=None,              # inherit parent stderr -> logging visible
             text=True,
             cwd=self._cwd,
-            bufsize=1,  # line-buffered for interactive reads
         )
 
         # Give the server a moment to initialize.
@@ -103,6 +103,10 @@ class ScreenPipeTool(BaseTool):
         """Send a JSON-RPC request and synchronously wait for the response."""
 
         if not self._server_proc or self._server_proc.poll() is not None:
+            if self._server_proc and self._server_proc.stderr:
+                err = self._server_proc.stderr.read().strip()
+                if err:
+                    print("\n=== fast_server stderr ===\n" + err + "\n=== end ===")
             raise RuntimeError("MCP server is not running")
 
         request = {
@@ -139,6 +143,10 @@ class ScreenPipeTool(BaseTool):
     def _send_rpc_raw(self, method: str, params: dict | None = None) -> dict:
         """Lower-level RPC helper bypassing initialization guard."""
         if not self._server_proc or self._server_proc.poll() is not None:
+            if self._server_proc and self._server_proc.stderr:
+                err = self._server_proc.stderr.read().strip()
+                if err:
+                    print("\n=== fast_server stderr ===\n" + err + "\n=== end ===")
             raise RuntimeError("MCP server is not running")
 
         request = {
@@ -233,52 +241,52 @@ screenpipe_tool = ScreenPipeTool()
 
 # Create a CrewAI agent
 screen_observer_agent = Agent(
-    role='Screen Observer',
-    goal='Observe the computer screen and report what is visible.',
+    role="Screen Observer",
+    goal="Detect user questions on screen & log confusion topics",
     llm="gpt-4o-mini",
     backstory=(
-        "An AI agent that can see the screen and understand what is on it. You are an educational agent specialized in recognizing learning, questioning and confusion in a user's actions. "
-        "You have access to the `ScreenPipe` tool which exposes the following methods:\n"
-        "• get_current_window – returns OCR text, appName, windowName (without screenshot)\n"
-        "• get_current_window_with_screenshot – same as above but also returns a base-64 PNG `screenshot` field\n"
-        "• start_window_monitoring / stop_window_monitoring – begin or end realtime capture\n"
-        "• search_window_history – search past OCR frames\n"
-        "Call the `ScreenPipe` tool once and pass the desired MCP command in its **`command`** argument.\n"
-        "Examples:\n"
-        "   {\"command\": \"get_current_window_with_screenshot\"}\n"
-        "   {\"command\": \"search_window_history {\\\"query\\\": \\\"gmail\\\"}\"}\n"
-        "Note the inner JSON when arguments are needed.  The only field you ever send to ScreenPipe is `command`.\n"
+        "You watch the live OCR feed and look for explicit questions the user types or reads—e.g. Google searches, ChatGPT queries, YouTube 'How do I …' titles.\n"
+        "Your mission: extract short phrase(s) that reflect what the user is confused about and log each via the ScreenPipe *log_confusion* tool.\n\n"
+        "Available ScreenPipe methods:\n"
+        "• get_current_window_with_screenshot – OCR + screenshot\n"
+        "• search_window_history – query previous OCR text\n"
+        "• log_confusion – <NEW> record a confusion event (arguments: {text})\n\n"
+        "Usage rules are identical: pass a single field `command` that contains the tool name and JSON arguments if needed.\n"
+        "Example to log confusion about 'variational autoencoders':\n"
+        "   {\"command\": \"log_confusion {\\\"concept\\\": \\\"variational autoencoders\\\"}\"}\n"
+        "Return a final answer listing the phrases you logged."
     ),
     verbose=True,
     tools=[screenpipe_tool],
-    allow_delegation=False
+    allow_delegation=False,
 )
 
-# # Create a task for the agent
-# task = Task(
-#     description=(
-#         "Step 1 → Call `get_current_window_with_screenshot` (no arguments).\n"
-#         "Step 2 → Inspect `text`, `appName`, `windowName`.\n"
-#         "Step 3 → Use both the OCR text *and* the screenshot to determine what the user is doing. Understand what the user has learned by recognizing what questions they have asked or what educational content they are reading/watching (like \"Learned about: agents in Python or Existentialism in Philosophy\"). Produce a list of phrases or concepts that the user will have associated with this experience. For example: [prior distributions, variational inference, agents, etc.]\n"
-#         "Step 4 → Finish."
-#     ),
-#     expected_output='A list of phrases or concepts that the user will have associated with the possible learning experience. For example: [prior distributions, variational inference, agents, etc.])"',
-#     agent=screen_observer_agent
-# )
+# Create a task for the observer agent
+observe_task = Task(
+    description=(
+        "1. Capture current window with `get_current_window_with_screenshot`.\n"
+        "2. Look for any sentence or query that ends with a '?' or begins with words like 'how', 'what', 'why', 'explain', etc. These indicate the user is asking a question.\n"
+        "3. From the OCR text, extract concise concept phrases (≤4 words each) that summarise the user's uncertainty.\n"
+        "4. For each phrase call `log_confusion` via ScreenPipe to record it.\n"
+        "5. After one log finish"
+    ),
+    expected_output="A JSON list of phrases that were logged via log_confusion.",
+    agent=screen_observer_agent,
+)
 
-# # Create a crew and run the task
-# crew = Crew(
+# # Create a crew runner for this observer (optionally invoked elsewhere)
+# observer_crew = Crew(
 #     agents=[screen_observer_agent],
-#     tasks=[task],
-#     process=Process.sequential
+#     tasks=[observe_task],
+#     process=Process.sequential,
 # )
 
-# result = crew.kickoff()
+# result = observer_crew.kickoff()
 
 # print(result)
 
 # For now, let's just test the tool directly
-# # result = screenpipe_tool._run('get_current_window')
+# result = screenpipe_tool._run('get_current_window')
 # print(result)
 
 # ---------------- Intervention Agent ----------------
@@ -291,16 +299,20 @@ intervention_agent = Agent(
     backstory=(
         "Use ScreenPipe to inspect the current window. If the user appears to be reading educational "
         "material or coding docs, surface a 1-sentence helpful explanation using the show_tooltip command.\n"
-         "You have access to the `ScreenPipe` tool which exposes the following methods:\n"
-        "• get_current_window – returns OCR text, appName, windowName (without screenshot)\n"
-        "• get_current_window_with_screenshot – same as above but also returns a base-64 PNG `screenshot` field\n"
-        "• start_window_monitoring / stop_window_monitoring – begin or end realtime capture\n"
-        "• search_window_history – search past OCR frames\n"
-        "Call the `ScreenPipe` tool once and pass the desired MCP command in its **`command`** argument.\n"
-        "Examples:\n"
-        "   {\"command\": \"get_current_window_with_screenshot\"}\n"
-        "   {\"command\": \"search_window_history {\\\"query\\\": \\\"gmail\\\"}\"}\n"
-        "Note the inner JSON when arguments are needed.  The only field you ever send to ScreenPipe is `command`.\n"
+        "Available ScreenPipe methods (use exactly one per Action):\n"
+        "• get_current_window_with_screenshot – OCR + screenshot\n"
+        "• classify_mastery – POST phrases to backend and get weak/strong/neutral\n"
+        "• show_tooltip – render a 1-sentence tooltip on screen\n\n"
+        "Calling convention: send a single JSON field `command` whose value is the tool name plus JSON args if needed.\n"
+        "Example: {\"command\": \"classify_mastery {\\\"phrases\\\": [\\\"posterior\\\", \\\"vae\\\"]}\"}.\n\n"
+        "IMPORTANT: When you output Action Input it MUST be exactly {\"command\": \"<tool-name><space>{JSON-args-if-any}\"}. No other keys are allowed."
+        "Workflow:\n"
+        "1. Capture window with get_current_window_with_screenshot.\n"
+        "2. Extract up to 8 candidate phrases (n-grams ≤3 words) from the OCR text.\n"
+        "3. classify_mastery with that list.\n"
+        "4. If 'weak' is not empty → choose one phrase and call show_tooltip \n"
+        "   with ≤25-word clarification of that concept relevant to the context. \n"
+        "5. Otherwise, do nothing. Return 'No help needed'."
     ),
     tools=[screenpipe_tool],
     allow_delegation=False,
@@ -310,10 +322,13 @@ intervention_agent = Agent(
 
 intervention_task = Task(
     description=(
-        "Detect if the user is learning something.\n"
-        "1. Call get_current_window_with_screenshot.\n"
-        "2. If OCR text suggests a tutorial, cursor, docs, stackoverflow, etc., call show_tooltip explaining the most difficult concept the user is looking at (≤25 words).\n"
-        "3. Otherwise, do nothing."
+        "Identify difficult concepts in the current window and optionally display a tooltip.\n"
+        "Step-by-step:\n"
+        "1. get_current_window_with_screenshot (no args).\n"
+        "2. Parse the OCR text → build an array `phrases` (≤8 meaningful tokens/short phrases).\n"
+        "3. classify_mastery with that list.\n"
+        "4. If 'weak' is not empty → choose one phrase and call show_tooltip with a ≤25-word explanation.\n"
+        "5. Return either 'No help needed' or 'Tooltip sent: <phrase>'."
     ),
     expected_output="Either 'No help needed' or confirmation of tooltip sent",
     agent=intervention_agent,
