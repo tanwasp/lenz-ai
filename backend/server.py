@@ -148,7 +148,6 @@ def extract_phrases(snips: Dict[int, str]) -> list[str]:
         [
             {"role": "system",
              "content": "Extract key technical phrases the reader might not know."},
-             "content": "Extract key technical phrases the reader might not know."},
             {"role": "user", "content": numbered}
         ],
         tools=EXTRACT_TOOL,
