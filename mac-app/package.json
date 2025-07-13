@@ -1,0 +1,16 @@
+{
+  "name": "window-text-streamer",
+  "version": "1.0.0",
+  "description": "Stream active window text content from ScreenPipe",
+  "main": "window-text-streamer-polling.js",
+  "scripts": {
+    "start": "node window-text-streamer-polling.js",
+    "websocket": "node window-text-streamer.js",
+    "test": "node test-websocket.js"
+  },
+  "dependencies": {
+    "ws": "^8.14.2",
+    "node-fetch": "^3.3.2"
+  },
+  "type": "module"
+}

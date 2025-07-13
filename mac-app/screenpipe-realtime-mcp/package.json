@@ -1,0 +1,23 @@
+{
+  "name": "screenpipe-realtime-mcp",
+  "version": "1.0.0",
+  "description": "MCP server for real-time ScreenPipe window streaming with OCR and screenshots",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "test": "node test-mcp.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "node-fetch": "^3.3.2",
+    "ws": "^8.14.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": ["mcp", "screenpipe", "ocr", "screenshot", "window", "ai"],
+  "author": "Your Name",
+  "license": "MIT"
+}

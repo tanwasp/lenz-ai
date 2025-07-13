@@ -8,6 +8,7 @@ from openai import OpenAI, OpenAIError
 import os, json
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
+import weave
 
 load_dotenv()
 
@@ -111,6 +112,7 @@ REWRITE_TOOL = [
 ]
 
 # ─── helpers ───────────────────────────────────────────────────────────
+@weave.op()
 def openai_call(messages, tools, tool_choice="auto"):
     return client.chat.completions.create(
         model=MODEL,
@@ -125,7 +127,7 @@ def extract_phrases(snips: Dict[int, str]) -> list[str]:
     resp = openai_call(
         [
             {"role": "system",
-             "content": "Extract key technical phrases the reader might not know."},
+             "content": "Extract key technical phrases."},
             {"role": "user", "content": numbered}
         ],
         tools=EXTRACT_TOOL,
@@ -139,9 +141,9 @@ def rewrite_snips(snips: Dict[int, str],
                   strong: list[str]) -> Dict[int, str]:
     numbered = "\n".join(f"{i}. {t}" for i, t in snips.items())
     system_prompt = (
-        "You are ReadWeaver. The user finds these topics hard: "
+        "The user finds these topics hard: "
         f"{weak}. They are comfortable with: {strong}. "
-        "Rewrite each snippet so that it is understandable to an undergraduate student and leave it be if it is already understandable"
+        "Rewrite each snippet accordingly. For jargon, give intuitive explanations in brackets and include an example. If appropriate. All snippets related to hard topics should be rewritten to a 9th grade level. If no information about user mastery is provided, do not rewrite the snippets."
         # "Rewrite each snippet accordingly; short, grade-8 language for weak topics, "
         # "normal technical wording for strong.\nReturn via rewrite_batch."
     )
